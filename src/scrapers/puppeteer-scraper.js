@@ -1,0 +1,167 @@
+import puppeteer from 'puppeteer';
+import dotenv from 'dotenv';
+import { savePhoneNumbers } from '../utils/fileHandler.js';
+import { normalizePhoneNumber, deduplicatePhoneNumbers, extractPhoneNumbers } from '../utils/phoneUtils.js';
+
+dotenv.config();
+
+const GROUP_NAME = process.env.GROUP_NAME || '';
+const OUTPUT_FILE = process.env.OUTPUT_FILE || 'output/phone-numbers.json';
+const WHATSAPP_WEB_URL = 'https://web.whatsapp.com';
+
+/**
+ * Alternative scraper using Puppeteer for direct browser automation
+ * Note: This approach is more complex and may be less reliable than whatsapp-web.js
+ */
+async function scrapePhoneNumbers() {
+  console.log('🚀 Starting Puppeteer WhatsApp Scraper...\n');
+  console.log('⚠️  Note: This approach requires manual interaction and may be less reliable\n');
+  
+  if (!GROUP_NAME) {
+    console.error('❌ Error: GROUP_NAME not set in .env file');
+    process.exit(1);
+  }
+
+  const browser = await puppeteer.launch({
+    headless: false, // Set to true for headless mode
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage'
+    ],
+    defaultViewport: {
+      width: 1280,
+      height: 720
+    }
+  });
+
+  try {
+    const page = await browser.newPage();
+    
+    console.log('🌐 Navigating to WhatsApp Web...');
+    await page.goto(WHATSAPP_WEB_URL, { waitUntil: 'networkidle2' });
+    
+    console.log('📱 Please scan the QR code in the browser window...');
+    console.log('⏳ Waiting for authentication...\n');
+    
+    // Wait for the main chat list to appear (indicates successful login)
+    await page.waitForSelector('[data-testid="chatlist"]', { timeout: 120000 });
+    console.log('✅ Successfully authenticated!\n');
+    
+    // Wait a bit for the page to fully load
+    await page.waitForTimeout(3000);
+    
+    console.log(`🔍 Searching for group: "${GROUP_NAME}"\n`);
+    
+    // Search for the group
+    const searchSelector = '[data-testid="chat-list-search"]';
+    await page.waitForSelector(searchSelector);
+    await page.click(searchSelector);
+    await page.type(searchSelector, GROUP_NAME);
+    await page.waitForTimeout(2000);
+    
+    // Click on the group from search results
+    const groupSelector = `span[title="${GROUP_NAME}"]`;
+    await page.waitForSelector(groupSelector, { timeout: 10000 });
+    await page.click(groupSelector);
+    await page.waitForTimeout(2000);
+    
+    console.log(`✅ Opened group: ${GROUP_NAME}\n`);
+    
+    // Click on group info/header to open group details
+    const groupHeaderSelector = '[data-testid="conversation-header"]';
+    await page.waitForSelector(groupHeaderSelector);
+    await page.click(groupHeaderSelector);
+    await page.waitForTimeout(2000);
+    
+    console.log('📊 Extracting participant information...\n');
+    
+    // Extract participant information from the group info panel
+    const participants = await page.evaluate(() => {
+      const participantElements = document.querySelectorAll('[data-testid="participant"]');
+      const phoneNumbers = [];
+      
+      participantElements.forEach(element => {
+        const nameElement = element.querySelector('span[title]');
+        const name = nameElement ? nameElement.getAttribute('title') : 'Unknown';
+        
+        // Try to extract phone number from various possible attributes
+        const phoneAttr = element.getAttribute('data-id') || 
+                         element.getAttribute('id') || 
+                         element.textContent;
+        
+        phoneNumbers.push({
+          name: name,
+          raw: phoneAttr
+        });
+      });
+      
+      return phoneNumbers;
+    });
+    
+    if (participants.length === 0) {
+      console.log('⚠️  No participants found. Trying alternative method...\n');
+      
+      // Alternative: Extract from group info text
+      const groupInfoText = await page.evaluate(() => {
+        return document.body.innerText;
+      });
+      
+      const extractedNumbers = extractPhoneNumbers(groupInfoText);
+      const phoneNumbers = extractedNumbers.map(num => ({
+        number: normalizePhoneNumber(num),
+        name: 'Unknown',
+        formatted: `+${normalizePhoneNumber(num)}`
+      }));
+      
+      const uniqueNumbers = deduplicatePhoneNumbers(phoneNumbers);
+      console.log(`✅ Extracted ${uniqueNumbers.length} phone numbers\n`);
+      
+      await savePhoneNumbers(uniqueNumbers, OUTPUT_FILE);
+      console.log('\n✨ Scraping completed!');
+      
+      await browser.close();
+      return;
+    }
+    
+    console.log(`📱 Found ${participants.length} participants\n`);
+    
+    // Process and normalize phone numbers
+    const phoneNumbers = participants.map(participant => {
+      const number = normalizePhoneNumber(participant.raw);
+      return {
+        number: number,
+        name: participant.name,
+        formatted: number ? `+${number}` : ''
+      };
+    }).filter(p => p.number); // Filter out invalid numbers
+    
+    const uniquePhoneNumbers = deduplicatePhoneNumbers(phoneNumbers);
+    
+    console.log(`✅ Extracted ${uniquePhoneNumbers.length} unique phone numbers\n`);
+    
+    // Save to files
+    console.log('💾 Saving phone numbers to files...\n');
+    await savePhoneNumbers(uniquePhoneNumbers, OUTPUT_FILE);
+    
+    console.log('\n✨ Scraping completed successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error during scraping:', error.message);
+    console.log('\n💡 Tips:');
+    console.log('   - Make sure you are logged into WhatsApp Web');
+    console.log('   - Ensure the group name matches exactly');
+    console.log('   - Try using the whatsapp-web.js approach for better reliability');
+  } finally {
+    console.log('\n⏳ Closing browser in 5 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    await browser.close();
+  }
+}
+
+// Run the scraper
+scrapePhoneNumbers().catch(error => {
+  console.error('❌ Fatal error:', error);
+  process.exit(1);
+});
+

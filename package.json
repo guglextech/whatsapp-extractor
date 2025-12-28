@@ -1,0 +1,34 @@
+{
+  "name": "whatsapp-phone-scraper",
+  "version": "1.0.0",
+  "description": "Scrape phone numbers from WhatsApp groups using multiple approaches",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "scraper:whatsapp-web": "node src/scrapers/whatsapp-web-scraper.js",
+    "scraper:puppeteer": "node src/scrapers/puppeteer-scraper.js",
+    "scraper:playwright": "node src/scrapers/playwright-scraper.js",
+    "scraper:telegram": "node src/scrapers/telegram-scraper.js",
+    "scraper:whatsapp-scroll": "node src/scrapers/whatsapp-web-scroll-scraper.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "scraper",
+    "phone-numbers",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "playwright": "^1.40.0",
+    "puppeteer": "^21.5.0",
+    "qrcode-terminal": "^0.12.0",
+    "telegram": "^2.26.22",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
