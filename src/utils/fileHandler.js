@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logToExcel } from './excelLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,9 @@ export async function savePhoneNumbersToTXT(phoneNumbers, outputPath) {
 export async function savePhoneNumbers(phoneNumbers, baseOutputPath) {
   const basePath = baseOutputPath.replace(/\.(json|csv|txt)$/, '');
   
+  // Save to Excel (creates if doesn't exist, appends if exists)
+  const excelPath = await logToExcel(phoneNumbers).catch(() => null);
+  
   await Promise.all([
     savePhoneNumbersToJSON(phoneNumbers, `${basePath}.json`),
     savePhoneNumbersToCSV(phoneNumbers, `${basePath}.csv`),
@@ -88,7 +92,8 @@ export async function savePhoneNumbers(phoneNumbers, baseOutputPath) {
   return {
     json: `${basePath}.json`,
     csv: `${basePath}.csv`,
-    txt: `${basePath}.txt`
+    txt: `${basePath}.txt`,
+    excel: excelPath || 'output/phone-numbers.xlsx'
   };
 }
 

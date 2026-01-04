@@ -8,9 +8,9 @@
     "start": "node index.js",
     "scraper:whatsapp-web": "node src/scrapers/whatsapp-web-scraper.js",
     "scraper:puppeteer": "node src/scrapers/puppeteer-scraper.js",
-    "scraper:playwright": "node src/scrapers/playwright-scraper.js",
-    "scraper:telegram": "node src/scrapers/telegram-scraper.js",
-    "scraper:whatsapp-scroll": "node src/scrapers/whatsapp-web-scroll-scraper.js"
+    "scraper:playwright": "nodemon src/scrapers/playwright-scraper.js",
+    "scraper:telegram": "nodemon src/scrapers/telegram-scraper.js",
+    "scraper:whatsapp-scroll": "nodemon src/scrapers/whatsapp-web-scroll-scraper.js"
   },
   "keywords": [
     "whatsapp",
@@ -26,7 +26,8 @@
     "puppeteer": "^21.5.0",
     "qrcode-terminal": "^0.12.0",
     "telegram": "^2.26.22",
-    "whatsapp-web.js": "^1.23.0"
+    "whatsapp-web.js": "^1.23.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { savePhoneNumbers } from '../utils/fileHandler.js';
 import { normalizePhoneNumber, deduplicatePhoneNumbers } from '../utils/phoneUtils.js';
+import { logRealtime, initLogFile, flushExcelCache } from '../utils/realtimeLogger.js';
 
 dotenv.config();
 
@@ -48,6 +49,10 @@ async function scrapePhoneNumbers() {
     console.log('   3. Click on group name to open Group Info');
     console.log('   4. Start scrolling through the members list\n');
     console.log('🔄 Monitoring for phone numbers...\n');
+    
+    // Initialize real-time log file
+    await initLogFile();
+    console.log('📝 Real-time logging enabled - numbers saved as you scroll\n');
 
     // Wait for WhatsApp Web to load
     await page.waitForSelector('[data-testid="chatlist"]', { timeout: 120000 }).catch(() => {
@@ -142,11 +147,17 @@ async function scrapePhoneNumbers() {
       numbers.forEach(phone => {
         const normalized = normalizePhoneNumber(phone.number);
         if (normalized) {
-          extractedNumbers.add(JSON.stringify({
+          const phoneData = {
             number: normalized,
             name: phone.name,
             formatted: `+${normalized}`
-          }));
+          };
+          
+          // Add to set
+          extractedNumbers.add(JSON.stringify(phoneData));
+          
+          // Log to file in real-time
+          logRealtime(phoneData, phone.name);
         }
       });
 
@@ -199,6 +210,9 @@ async function scrapePhoneNumbers() {
     // Save function
     const saveExtractedNumbers = async () => {
       clearInterval(monitorInterval);
+      
+      // Flush any remaining Excel entries
+      await flushExcelCache();
       
       const phoneNumbersArray = Array.from(extractedNumbers).map(str => JSON.parse(str));
       const uniqueNumbers = deduplicatePhoneNumbers(phoneNumbersArray);

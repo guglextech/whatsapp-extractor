@@ -168,6 +168,7 @@
       phoneNumbers: numbersArray
     };
 
+    // Save JSON
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -176,7 +177,7 @@
     a.click();
     URL.revokeObjectURL(url);
 
-    // Also create CSV
+    // Save CSV
     const csv = 'Name,Phone Number,Formatted\n' + 
                 numbersArray.map(p => 
                   `"${(p.name || 'Unknown').replace(/"/g, '')}","${p.number}","${p.formatted}"`
@@ -190,7 +191,9 @@
     csvA.click();
     URL.revokeObjectURL(csvUrl);
 
-    alert(`✅ Saved ${numbersArray.length} phone numbers!`);
+    // Note: Excel file is saved automatically by Node.js scrapers
+    // Browser extension saves JSON/CSV, Excel is handled server-side
+    alert(`✅ Saved ${numbersArray.length} phone numbers!\n\nJSON and CSV files downloaded.\nExcel file is updated automatically by Node.js scrapers.`);
   }
 
   // Copy numbers to clipboard
