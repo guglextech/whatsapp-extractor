@@ -10,3 +10,8 @@ output/
 !package.json
 !package-lock.json
 
+whatsapp-scroll-numbers.txt
+whatsapp-scroll-numbers.csv
+whatsapp-scroll-numbers.json
+
+/output/
