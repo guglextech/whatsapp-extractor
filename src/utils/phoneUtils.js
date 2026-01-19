@@ -1,5 +1,5 @@
 /**
- * Validates if a string is a valid phone number
+ * Validates if a string is a valid Ghana phone number
  */
 export function isValidPhoneNumber(phone) {
   if (!phone) return false;
@@ -7,8 +7,36 @@ export function isValidPhoneNumber(phone) {
   // Remove all non-digit characters for validation
   const cleaned = phone.replace(/\D/g, '');
   
-  // Phone numbers should be between 7 and 15 digits (international standard)
-  return cleaned.length >= 7 && cleaned.length <= 15;
+  // Ghana phone number validation
+  // Format: +233XXXXXXXXX (12 digits with country code) or 233XXXXXXXXX
+  // Or local format: 0XXXXXXXXX (10 digits starting with 0)
+  // Mobile prefixes: 20, 24, 26, 27, 50, 54, 55, 56, 57, 59
+  
+  // Check if it's a Ghana number with country code
+  if (cleaned.startsWith('233')) {
+    // Should be 12 digits total (233 + 9 digits)
+    if (cleaned.length === 12) {
+      const mobilePrefix = cleaned.substring(3, 5); // Get first 2 digits after 233
+      const validPrefixes = ['20', '24', '26', '27', '50', '54', '55', '56', '57', '59'];
+      return validPrefixes.includes(mobilePrefix);
+    }
+  }
+  
+  // Check if it's a local Ghana number (starts with 0)
+  if (cleaned.startsWith('0') && cleaned.length === 10) {
+    const mobilePrefix = cleaned.substring(1, 3); // Get first 2 digits after 0
+    const validPrefixes = ['20', '24', '26', '27', '50', '54', '55', '56', '57', '59'];
+    return validPrefixes.includes(mobilePrefix);
+  }
+  
+  // Check if it's 9 digits (without country code or leading 0)
+  if (cleaned.length === 9) {
+    const mobilePrefix = cleaned.substring(0, 2);
+    const validPrefixes = ['20', '24', '26', '27', '50', '54', '55', '56', '57', '59'];
+    return validPrefixes.includes(mobilePrefix);
+  }
+  
+  return false;
 }
 
 /**
@@ -42,7 +70,7 @@ export function extractPhoneNumbers(text) {
 }
 
 /**
- * Normalizes phone number format
+ * Normalizes phone number format to Ghana standard (233XXXXXXXXX)
  */
 export function normalizePhoneNumber(phone) {
   if (!phone) return '';
@@ -52,10 +80,31 @@ export function normalizePhoneNumber(phone) {
   
   // If it's a WhatsApp ID format (e.g., 1234567890@c.us), extract the number
   if (phone.includes('@c.us')) {
-    cleaned = phone.split('@')[0];
+    cleaned = phone.split('@')[0].replace(/\D/g, '');
   }
   
-  return cleaned;
+  // Normalize to Ghana format: 233XXXXXXXXX (12 digits)
+  if (cleaned.startsWith('233')) {
+    // Already has country code, ensure it's 12 digits
+    if (cleaned.length === 12) {
+      return cleaned;
+    }
+    // If longer, truncate to 12
+    if (cleaned.length > 12) {
+      return cleaned.substring(0, 12);
+    }
+  } else if (cleaned.startsWith('0')) {
+    // Local format: 0XXXXXXXXX -> convert to 233XXXXXXXXX
+    if (cleaned.length === 10) {
+      return '233' + cleaned.substring(1);
+    }
+  } else if (cleaned.length === 9) {
+    // 9 digits without prefix -> add 233
+    return '233' + cleaned;
+  }
+  
+  // If it doesn't match Ghana format, return empty
+  return '';
 }
 
 /**
