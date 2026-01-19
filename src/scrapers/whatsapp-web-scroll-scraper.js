@@ -56,9 +56,9 @@ async function scrapePhoneNumbers() {
     console.log("📋 Instructions:");
     console.log("   1. Scan QR code if needed");
     console.log("   2. Open the group you want to scrape");
-    console.log("   3. Click on group name to open Group Info");
-    console.log("   4. Start scrolling through the members list\n");
-    console.log("🔄 Monitoring for phone numbers...\n");
+    console.log("   3. Click search icon to open 'Search members' modal");
+    console.log("   4. Numbers will be extracted automatically\n");
+    console.log("🔄 Monitoring 'Search members' modal for Ghana phone numbers...\n");
 
     // Initialize real-time log file
     await initLogFile();
@@ -77,88 +77,57 @@ async function scrapePhoneNumbers() {
     let scrollAttempts = 0;
     const maxScrollAttempts = 1000; // Prevent infinite scrolling
 
-    // Function to extract phone numbers from the page
+    // Extract phone numbers from "Search members" modal
     const extractNumbers = async () => {
       try {
         const phoneNumbers = await page.evaluate(() => {
           const numbers = [];
-
-          // Look for phone numbers in various possible selectors
-          const selectors = [
-            '[data-testid="cell-frame-container"]',
-            '[role="listitem"]',
-            'span[title*="+"]',
-            'div[title*="+"]',
-          ];
-
-          selectors.forEach((selector) => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach((el) => {
-              // Get text content
-              const text = el.textContent || el.innerText || "";
-
-              // Extract phone numbers using regex
-              const phoneRegex =
-                /\+?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}/g;
-              const matches = text.match(phoneRegex);
-
-              if (matches) {
-                matches.forEach((match) => {
-                  // Clean and normalize
-                  const cleaned = match.replace(/\D/g, "");
-                  if (cleaned.length >= 7 && cleaned.length <= 15) {
-                    // Try to get associated name
-                    const nameElement =
-                      el.querySelector("span[title]") ||
-                      el.closest("[data-testid]")?.querySelector("span");
-                    const name =
-                      nameElement?.getAttribute("title") ||
-                      nameElement?.textContent?.trim() ||
-                      "Unknown";
-
-                    numbers.push({
-                      number: cleaned,
-                      name:
-                        name
-                          .replace(
-                            /\+?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}/g,
-                            "",
-                          )
-                          .trim() || "Unknown",
-                      raw: match,
-                    });
+          const seen = new Set();
+          
+          // Find "Search members" modal
+          const searchModal = Array.from(document.querySelectorAll('span')).find(
+            el => el.textContent === 'Search members'
+          )?.closest('div[role="dialog"]') || 
+          Array.from(document.querySelectorAll('*')).find(
+            el => el.textContent?.includes('Search members')
+          )?.closest('div');
+          
+          if (!searchModal) return numbers;
+          
+          // Ghana phone regex: +233 XX XXX XXXX or +233XXXXXXXXX
+          const ghanaRegex = /(\+?233\s*[25][0-9]\s*\d{3}\s*\d{4}|\+?233[25][0-9]\d{7})/g;
+          
+          // Find all member items in modal
+          const members = searchModal.querySelectorAll('[data-testid="cell-frame-container"], [role="listitem"]');
+          
+          members.forEach(member => {
+            const text = member.textContent || '';
+            const matches = text.match(ghanaRegex);
+            
+            if (matches) {
+              matches.forEach(match => {
+                let cleaned = match.replace(/\s+/g, '').replace(/\D/g, '');
+                
+                // Normalize to 233XXXXXXXXX
+                if (cleaned.startsWith('233') && cleaned.length === 12) {
+                  const prefix = cleaned.substring(3, 5);
+                  const validPrefixes = ['20', '24', '26', '27', '50', '54', '55', '56', '57', '59'];
+                  
+                  if (validPrefixes.includes(prefix) && !seen.has(cleaned)) {
+                    seen.add(cleaned);
+                    
+                    // Extract name
+                    const nameEl = member.querySelector('span[title], span[dir="auto"]');
+                    let name = nameEl?.getAttribute('title') || nameEl?.textContent || 'Unknown';
+                    name = name.replace(ghanaRegex, '').trim() || 'Unknown';
+                    
+                    numbers.push({ number: cleaned, name, raw: match });
                   }
-                });
-              }
-
-              // Also check title attribute
-              const title = el.getAttribute("title");
-              if (title) {
-                const titleMatches = title.match(
-                  /\+?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}/g,
-                );
-                if (titleMatches) {
-                  titleMatches.forEach((match) => {
-                    const cleaned = match.replace(/\D/g, "");
-                    if (cleaned.length >= 7 && cleaned.length <= 15) {
-                      numbers.push({
-                        number: cleaned,
-                        name:
-                          title
-                            .replace(
-                              /\+?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}/g,
-                              "",
-                            )
-                            .trim() || "Unknown",
-                        raw: match,
-                      });
-                    }
-                  });
                 }
-              }
-            });
+              });
+            }
           });
-
+          
           return numbers;
         });
 
@@ -198,48 +167,22 @@ async function scrapePhoneNumbers() {
         lastCount = currentCount;
       }
 
-      // Auto-scroll if needed (optional - can be disabled)
+      // Auto-scroll search modal if needed
       try {
-        // Check if we're in the members list
-        const isMembersList = await page.evaluate(() => {
-          return (
-            document.querySelector('[data-testid="drawer-right"]') !== null ||
-            document.querySelector('div[aria-label*="member"]') !== null ||
-            document.querySelector('span:contains("View all")') !== null
-          );
+        await page.evaluate(() => {
+          const searchModal = Array.from(document.querySelectorAll('span')).find(
+            el => el.textContent === 'Search members'
+          )?.closest('div[role="dialog"]');
+          
+          if (searchModal) {
+            const scrollContainer = searchModal.querySelector('[role="list"]') || 
+                                   searchModal.querySelector('div[style*="overflow"]') ||
+                                   searchModal;
+            if (scrollContainer) {
+              scrollContainer.scrollTop += 300;
+            }
+          }
         });
-
-        if (isMembersList && scrollAttempts < maxScrollAttempts) {
-          // Try to find and click "View all" or scroll the members list
-          await page.evaluate(() => {
-            const viewAllButton = Array.from(
-              document.querySelectorAll("span"),
-            ).find(
-              (el) =>
-                el.textContent.includes("View all") ||
-                el.textContent.includes("more"),
-            );
-
-            if (viewAllButton) {
-              viewAllButton.click();
-            }
-
-            // Scroll the members container
-            const membersContainer =
-              document.querySelector('[data-testid="drawer-right"]') ||
-              document.querySelector('[role="list"]') ||
-              document.querySelector('div[style*="overflow"]');
-
-            if (membersContainer) {
-              membersContainer.scrollTop += 500;
-            } else {
-              // Fallback: scroll the window
-              window.scrollBy(0, 300);
-            }
-          });
-
-          scrollAttempts++;
-        }
       } catch (error) {
         // Ignore scroll errors
       }
@@ -262,10 +205,8 @@ async function scrapePhoneNumbers() {
         await savePhoneNumbers(uniqueNumbers, OUTPUT_FILE);
         console.log("\n✨ Scraping completed!");
       } else {
-        console.log("\n⚠️  No phone numbers were extracted.");
-        console.log(
-          "Make sure you have the group members list open and visible.",
-        );
+        console.log("\n⚠️  No Ghana phone numbers were extracted.");
+        console.log("Make sure the 'Search members' modal is open.");
       }
     };
 
